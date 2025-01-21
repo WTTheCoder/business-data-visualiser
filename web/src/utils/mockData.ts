@@ -1,7 +1,8 @@
+// src/utils/mockData.ts
+
 export interface SalesData {
   date: string;
   amount: number;
-  region: string;
 }
 
 export interface RevenueData {
@@ -16,25 +17,44 @@ export interface GrowthData {
   target: number;
 }
 
-// Mock data generator
+// 生成测试数据
 export const generateMockData = () => {
+  // 生成24个月的销售数据
+  const salesData: SalesData[] = Array.from({ length: 24 }, (_, i) => {
+    const date = new Date(2024, 0, 1);
+    date.setMonth(date.getMonth() + i);
+    return {
+      date: date.toISOString().slice(0, 7),
+      amount: 10000 + Math.random() * 8000 + Math.sin(i / 3) * 3000,
+    };
+  });
+
+  // 季度收入数据
+  const revenueData: RevenueData[] = [
+    { period: "Q1", revenue: 150000, growth: 15.2 },
+    { period: "Q2", revenue: 175000, growth: 16.7 },
+    { period: "Q3", revenue: 190000, growth: 18.3 },
+    { period: "Q4", revenue: 220000, growth: 19.5 },
+  ];
+
+  // 年度增长数据
+  const growthData: GrowthData[] = [
+    { year: "2020", value: 85, target: 80 },
+    { year: "2021", value: 93, target: 90 },
+    { year: "2022", value: 98, target: 95 },
+    { year: "2023", value: 105, target: 100 },
+    { year: "2024", value: 112, target: 110 },
+  ];
+
   return {
-    salesData: [
-      { date: "2024-01", amount: 12500, region: "North" },
-      { date: "2024-01", amount: 15000, region: "South" },
-      { date: "2024-02", amount: 13800, region: "North" },
-      { date: "2024-02", amount: 16200, region: "South" },
-      // Add more data points...
-    ],
-    revenueData: [
-      { period: "Q1", revenue: 150000, growth: 15.5 },
-      { period: "Q2", revenue: 175000, growth: 16.7 },
-      // Add more data points...
-    ],
-    growthData: [
-      { year: "2023", value: 100, target: 95 },
-      { year: "2024", value: 115, target: 110 },
-      // Add more data points...
-    ],
+    salesData,
+    revenueData,
+    growthData,
   };
 };
+
+// 导出固定的测试数据
+const mockData = generateMockData();
+export const salesData = mockData.salesData;
+export const revenueData = mockData.revenueData;
+export const growthData = mockData.growthData;
