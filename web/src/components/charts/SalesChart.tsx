@@ -220,6 +220,7 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
           itemGap: 20,
           right: 20,
           top: 10,
+          showTitle: false,
           feature: {
             dataZoom: {
               show: true,

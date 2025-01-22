@@ -1,4 +1,3 @@
-console.log("Mock data length:", mockData.length);
 import { FC, useState, useMemo, useCallback } from "react";
 import { Box, Grid } from "@mui/material";
 import SalesChart from "../components/charts/SalesChart";
@@ -10,26 +9,16 @@ import { mockData } from "../utils/mockData";
 const Dashboard: FC = () => {
   const [filterCriteria, setFilterCriteria] = useState({
     region: "all",
-    startDate: null as Date | null,
-    endDate: null as Date | null,
+    startDate: new Date(2024, 0, 1),
+    endDate: new Date(2025, 0, 31),
   });
-
-  // 初始数据分块大小调整
-  const CHUNK_SIZE = 20;
 
   // Memoize filtered data
   const filteredData = useMemo(() => {
-    console.log("Filtering data..."); // 调试日志
+    console.log("Filtering data with criteria:", filterCriteria);
     let filtered = mockData;
 
-    if (filterCriteria.region && filterCriteria.region !== "all") {
-      filtered = filtered.filter((item) =>
-        filterCriteria.region.startsWith("AU-")
-          ? item.subRegion === filterCriteria.region
-          : item.region === filterCriteria.region
-      );
-    }
-
+    // Apply date filter
     if (filterCriteria.startDate && filterCriteria.endDate) {
       const start = filterCriteria.startDate.getTime();
       const end = filterCriteria.endDate.getTime();
@@ -40,13 +29,28 @@ const Dashboard: FC = () => {
       });
     }
 
-    console.log("Filtered data length:", filtered.length); // 调试日志
+    // Apply region filter
+    if (filterCriteria.region !== "all") {
+      filtered = filtered.filter((item) =>
+        filterCriteria.region.startsWith("AU-")
+          ? item.subRegion === filterCriteria.region.split("-")[1]
+          : item.region === filterCriteria.region
+      );
+    }
+
+    console.log("Filtered data length:", filtered.length);
     return filtered;
   }, [filterCriteria]);
 
+  // Calculate chunk size based on data volume
+  const CHUNK_SIZE = useMemo(
+    () => Math.max(20, Math.ceil(filteredData.length / 400)),
+    [filteredData.length]
+  );
+
   // Pre-calculate data chunks for each chart
   const chartData = useMemo(() => {
-    console.log("Generating chunks..."); // 调试日志
+    console.log("Generating chunks with size:", CHUNK_SIZE);
     const dataLength = filteredData.length;
     const chunks = [];
 
@@ -54,13 +58,17 @@ const Dashboard: FC = () => {
       chunks.push(filteredData.slice(i, i + CHUNK_SIZE));
     }
 
-    console.log("Number of chunks:", chunks.length); // 调试日志
     return chunks;
-  }, [filteredData]);
+  }, [filteredData, CHUNK_SIZE]);
 
   const handleDataFiltering = useCallback(
     (region: string, startDate: Date | null, endDate: Date | null) => {
-      setFilterCriteria({ region, startDate, endDate });
+      console.log("Updating filters:", { region, startDate, endDate });
+      setFilterCriteria({
+        region,
+        startDate: startDate || new Date(2024, 0, 1),
+        endDate: endDate || new Date(2025, 0, 31),
+      });
     },
     []
   );
@@ -68,7 +76,10 @@ const Dashboard: FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <h1>Dashboard Overview</h1>
-      <DataFilters onFilterChange={handleDataFiltering} />
+      <DataFilters
+        onFilterChange={handleDataFiltering}
+        defaultRegion={filterCriteria.region}
+      />
       <Grid container spacing={3}>
         <Grid item xs={12}>
           <Box

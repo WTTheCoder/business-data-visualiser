@@ -175,6 +175,7 @@ const CostChart: FC<CostChartProps> = ({ dataChunks, onChartReady }) => {
           itemSize: 20,
           itemGap: 20,
           right: 20,
+          showTitle: false,
           top: 10,
           feature: {
             dataZoom: {
