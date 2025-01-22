@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from "react";
+import { FC, useState, useEffect, useCallback } from "react";
 import {
   Box,
   FormControl,
@@ -9,6 +9,7 @@ import {
   ListItemIcon,
   ListItemText,
   IconButton,
+  SelectChangeEvent,
   TextField,
 } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -32,40 +33,81 @@ const DataFilters: FC<DataFilterProps> = ({ onFilterChange }) => {
   const [endDate, setEndDate] = useState<Date | null>(new Date(2025, 0, 31));
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
 
+  const handleRegionChange = useCallback((event: SelectChangeEvent<string>) => {
+    const newRegion = event.target.value;
+    setSelectedRegion(newRegion);
+    if (newRegion === "AU") {
+      setExpandedRegion("AU");
+    } else {
+      setExpandedRegion(null);
+    }
+  }, []);
+
   useEffect(() => {
     onFilterChange(selectedRegion, startDate, endDate);
   }, [selectedRegion, startDate, endDate, onFilterChange]);
 
-  const handleRegionClick = (code: string) => {
-    if (code === "AU") {
-      setExpandedRegion(expandedRegion === "AU" ? null : "AU");
-    } else {
-      setSelectedRegion(code);
-      setExpandedRegion(null);
-    }
-  };
+  const renderRegionMenuItem = useCallback(
+    (region: RegionData) => (
+      <MenuItem
+        key={region.code}
+        value={region.code}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          paddingY: 1,
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: 40 }}>
+          <span
+            style={{
+              fontSize: "1rem",
+              fontWeight: "bold",
+              fontFamily: "monospace",
+            }}
+          >
+            {region.flag}
+          </span>
+        </ListItemIcon>
+        <ListItemText primary={region.name} />
+        {region.code === "AU" && region.subRegions && (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedRegion(expandedRegion === "AU" ? null : "AU");
+            }}
+          >
+            {expandedRegion === "AU" ? <ExpandMore /> : <ChevronRight />}
+          </IconButton>
+        )}
+      </MenuItem>
+    ),
+    [expandedRegion]
+  );
 
-  const renderRegionMenuItem = (region: RegionData) => (
-    <MenuItem
-      key={region.code}
-      value={region.code}
-      onClick={() => handleRegionClick(region.code)}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        paddingY: 1,
-      }}
-    >
-      <ListItemIcon sx={{ minWidth: 40 }}>
-        <span style={{ fontSize: "1.2rem" }}>{region.flag}</span>
-      </ListItemIcon>
-      <ListItemText primary={region.name} />
-      {region.code === "AU" && region.subRegions && (
-        <IconButton size="small">
-          {expandedRegion === "AU" ? <ExpandMore /> : <ChevronRight />}
-        </IconButton>
-      )}
-    </MenuItem>
+  const renderSubRegions = useCallback(
+    (subRegions: RegionData[]) => (
+      <Collapse in={true} timeout="auto">
+        {subRegions.map((subRegion) => (
+          <MenuItem key={subRegion.code} value={subRegion.code} sx={{ pl: 4 }}>
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <span
+                style={{
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  fontFamily: "monospace",
+                }}
+              >
+                {subRegion.flag}
+              </span>
+            </ListItemIcon>
+            <ListItemText primary={subRegion.name} />
+          </MenuItem>
+        ))}
+      </Collapse>
+    ),
+    []
   );
 
   return (
@@ -102,48 +144,21 @@ const DataFilters: FC<DataFilterProps> = ({ onFilterChange }) => {
         <Select
           value={selectedRegion}
           label="Region"
+          onChange={handleRegionChange}
           MenuProps={{
             PaperProps: {
               sx: { maxHeight: 500 },
             },
           }}
         >
-          <MenuItem value="all">
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <span style={{ fontSize: "1.2rem" }}>🌏</span>
-            </ListItemIcon>
-            <ListItemText primary="All Regions" />
-          </MenuItem>
+          <MenuItem value="all">All Regions</MenuItem>
           {regions.map((region) => (
             <Box key={region.code}>
               {renderRegionMenuItem(region)}
               {region.code === "AU" &&
                 expandedRegion === "AU" &&
-                region.subRegions && (
-                  <Collapse in={true}>
-                    {region.subRegions.map((subRegion) => (
-                      <MenuItem
-                        key={subRegion.code}
-                        value={subRegion.code}
-                        sx={{ pl: 4 }}
-                        onClick={() => setSelectedRegion(subRegion.code)}
-                      >
-                        <ListItemIcon sx={{ minWidth: 40 }}>
-                          <span
-                            style={{
-                              fontSize: "1rem",
-                              fontWeight: "bold",
-                              fontFamily: "monospace",
-                            }}
-                          >
-                            {subRegion.flag}
-                          </span>
-                        </ListItemIcon>
-                        <ListItemText primary={subRegion.name} />
-                      </MenuItem>
-                    ))}
-                  </Collapse>
-                )}
+                region.subRegions &&
+                renderSubRegions(region.subRegions)}
             </Box>
           ))}
         </Select>
