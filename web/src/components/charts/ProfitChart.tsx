@@ -70,7 +70,6 @@ const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
           opacity: 0.9,
         },
         emphasis: {
-          focus: "series",
           itemStyle: {
             opacity: 1,
           },
@@ -82,7 +81,7 @@ const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
         type: "line",
         yAxisIndex: 1,
         data: processedData.map((item) => item.margin),
-        symbolSize: 6,
+        symbolSize: 8,
         lineStyle: {
           width: 2,
           color: theme.palette.secondary.main,
@@ -92,8 +91,8 @@ const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
         },
         emphasis: {
           focus: "series",
-          lineStyle: {
-            width: 3,
+          itemStyle: {
+            borderWidth: 2,
           },
         },
       };
@@ -107,6 +106,11 @@ const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
             color: theme.palette.text.primary,
             fontSize: 16,
             fontWeight: "normal",
+          },
+          subtext: "Monthly profit and profit margin trends",
+          subtextStyle: {
+            color: theme.palette.text.secondary,
+            fontSize: 12,
           },
         },
         tooltip: {
@@ -175,39 +179,51 @@ const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
         toolbox: {
           show: true,
           itemSize: 20,
-          itemGap: 15,
+          itemGap: 20,
           right: 20,
           top: 10,
           feature: {
             dataZoom: {
               show: true,
               title: {
-                zoom: "Zoom",
+                zoom: "Zoom Selection",
                 back: "Reset Zoom",
               },
             },
             restore: {
               show: true,
-              title: "Reset",
+              title: "Reset All",
             },
             saveAsImage: {
               show: true,
-              title: "Save as Image",
+              title: "Save Image",
               type: "png",
               excludeComponents: ["toolbox"],
             },
+          },
+          tooltip: {
+            show: true,
+            backgroundColor: theme.palette.background.paper,
+            borderColor: theme.palette.divider,
+            textStyle: {
+              color: theme.palette.text.primary,
+            },
+            extraCssText:
+              "box-shadow: 0 0 3px rgba(0, 0, 0, 0.3); padding: 8px;",
           },
         },
         legend: {
           show: true,
           data: ["Profit", "Profit Margin"],
           bottom: 60,
+          itemGap: 30,
           textStyle: {
             color: theme.palette.text.primary,
           },
+          padding: [5, 10],
         },
         grid: {
-          top: 70,
+          top: 100,
           left: 80,
           right: 80,
           bottom: 120,
@@ -284,6 +300,7 @@ const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
             type: "value",
             name: "Profit Margin (%)",
             position: "right",
+            alignTicks: true,
             axisLine: {
               show: true,
               lineStyle: {

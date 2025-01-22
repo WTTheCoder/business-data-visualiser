@@ -26,7 +26,7 @@ export interface DailyData {
   subRegion?: string;
 }
 
-// Region definitions
+// Region definitions - only keeping AU, SG, and NZ
 export const regions: RegionData[] = [
   {
     code: "AU",
@@ -45,40 +45,16 @@ export const regions: RegionData[] = [
     ],
   },
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
-  { code: "CN", name: "China (Main Land)", flag: "🇨🇳" },
-  { code: "HK", name: "Hong Kong", flag: "🇭🇰" },
-  { code: "ID", name: "Indonesia", flag: "🇮🇩" },
-  { code: "JP", name: "Japan", flag: "🇯🇵" },
-  { code: "MO", name: "Macau", flag: "🇲🇴" },
-  { code: "MY", name: "Malaysia", flag: "🇲🇾" },
-  { code: "MN", name: "Mongolia", flag: "🇲🇳" },
   { code: "NZ", name: "New Zealand", flag: "🇳🇿" },
-  { code: "PH", name: "Philippines", flag: "🇵🇭" },
-  { code: "KR", name: "South Korea", flag: "🇰🇷" },
-  { code: "TW", name: "Taiwan", flag: "🇹🇼" },
-  { code: "TH", name: "Thailand", flag: "🇹🇭" },
-  { code: "VN", name: "Vietnam", flag: "🇻🇳" },
 ];
 
 // Helper functions for data generation
 const generateBaseMetrics = (region: string): number => {
   // Set base metrics according to regional economic indicators
   const baseMetrics: { [key: string]: number } = {
-    JP: 180000, // Japan - Highest GDP per capita in Asia
-    SG: 160000, // Singapore - High GDP, financial hub
-    KR: 150000, // South Korea - Advanced economy
-    HK: 155000, // Hong Kong - Financial center
     AU: 170000, // Australia - Developed economy
-    CN: 145000, // China - Large market
-    TW: 140000, // Taiwan - Advanced tech economy
+    SG: 160000, // Singapore - High GDP, financial hub
     NZ: 130000, // New Zealand - Developed economy
-    MY: 100000, // Malaysia - Growing market
-    TH: 90000, // Thailand - Emerging market
-    ID: 85000, // Indonesia - Large population
-    VN: 80000, // Vietnam - Fast growing
-    PH: 75000, // Philippines - Developing
-    MO: 95000, // Macau - Tourism dependent
-    MN: 70000, // Mongolia - Emerging market
   };
 
   return baseMetrics[region] || 100000;

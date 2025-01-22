@@ -56,16 +56,31 @@ const CostChart: FC<CostChartProps> = ({ dataChunks, onChartReady }) => {
       // Get sorted months
       const months = Array.from(monthlyData.keys()).sort();
 
+      const colors = [
+        theme.palette.info.main, // Tax
+        theme.palette.success.main, // Salary
+        theme.palette.warning.main, // Benefits
+        theme.palette.error.main, // Rent
+        theme.palette.primary.main, // Utilities
+        theme.palette.secondary.main, // Marketing
+        theme.palette.grey[500], // Others
+      ];
+
       // Generate series data for each cost category
-      const series: BarSeriesOption[] = COST_CATEGORIES.map((category) => ({
-        name: category,
-        type: "bar",
-        stack: "total",
-        emphasis: { focus: "series" },
-        data: months.map(
-          (month) => monthlyData.get(month)![category.toLowerCase()] || 0
-        ),
-      }));
+      const series: BarSeriesOption[] = COST_CATEGORIES.map(
+        (category, index) => ({
+          name: category,
+          type: "bar",
+          stack: "total",
+          emphasis: { focus: "series" },
+          itemStyle: {
+            color: colors[index],
+          },
+          data: months.map(
+            (month) => monthlyData.get(month)![category.toLowerCase()] || 0
+          ),
+        })
+      );
 
       const option: EChartsOption = {
         title: {
@@ -76,6 +91,11 @@ const CostChart: FC<CostChartProps> = ({ dataChunks, onChartReady }) => {
             color: theme.palette.text.primary,
             fontSize: 16,
             fontWeight: "normal",
+          },
+          subtext: "Monthly cost breakdown by category",
+          subtextStyle: {
+            color: theme.palette.text.secondary,
+            fontSize: 12,
           },
         },
         tooltip: {
@@ -153,39 +173,51 @@ const CostChart: FC<CostChartProps> = ({ dataChunks, onChartReady }) => {
         toolbox: {
           show: true,
           itemSize: 20,
-          itemGap: 15,
+          itemGap: 20,
           right: 20,
           top: 10,
           feature: {
             dataZoom: {
               show: true,
               title: {
-                zoom: "Zoom",
+                zoom: "Zoom Selection",
                 back: "Reset Zoom",
               },
             },
             restore: {
               show: true,
-              title: "Reset",
+              title: "Reset All",
             },
             saveAsImage: {
               show: true,
-              title: "Save as Image",
+              title: "Save Image",
               type: "png",
               excludeComponents: ["toolbox"],
             },
+          },
+          tooltip: {
+            show: true,
+            backgroundColor: theme.palette.background.paper,
+            borderColor: theme.palette.divider,
+            textStyle: {
+              color: theme.palette.text.primary,
+            },
+            extraCssText:
+              "box-shadow: 0 0 3px rgba(0, 0, 0, 0.3); padding: 8px;",
           },
         },
         legend: {
           show: true,
           type: "scroll",
           bottom: 60,
+          itemGap: 30,
           textStyle: {
             color: theme.palette.text.primary,
           },
+          padding: [5, 10],
         },
         grid: {
-          top: 70,
+          top: 100,
           left: 80,
           right: 80,
           bottom: 120,
@@ -231,6 +263,12 @@ const CostChart: FC<CostChartProps> = ({ dataChunks, onChartReady }) => {
         yAxis: {
           type: "value",
           name: "Cost Amount (USD)",
+          nameLocation: "middle",
+          nameGap: 50,
+          nameTextStyle: {
+            color: theme.palette.text.secondary,
+            padding: [0, 0, 15, 0],
+          },
           axisLine: {
             show: true,
             lineStyle: {

@@ -4,7 +4,7 @@ import { DailyData } from "../../utils/mockData";
 import type {
   EChartsOption,
   ECharts,
-  LineSeriesOption,
+  BarSeriesOption,
   ScatterSeriesOption,
 } from "echarts";
 import { useTheme } from "@mui/material";
@@ -33,75 +33,67 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
   const chartRef = useRef<ReactEcharts>(null);
   const chartInstance = useRef<ECharts | null>(null);
 
-  // 初始化图表选项
   useEffect(() => {
+    console.log("Processing sales data chunks:", dataChunks.length);
+
     if (dataChunks.length === 0) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const allData: SalesDataPoint[] = [];
+      const dailyTotalMap = new Map<string, number>();
       const peakPointsMap = new Map<string, number>();
 
-      // 处理所有数据块
+      // Aggregate daily sales and find monthly peaks
       dataChunks.forEach((chunk) => {
         chunk.forEach((item) => {
-          const monthKey = item.date.substring(0, 7);
-          allData.push({
-            date: item.date,
-            sales: item.sales,
-          });
+          const dateKey = item.date;
+          const monthKey = dateKey.substring(0, 7);
 
+          // Aggregate daily total
+          const currentTotal = dailyTotalMap.get(dateKey) || 0;
+          dailyTotalMap.set(dateKey, currentTotal + item.sales);
+
+          // Update monthly peak if necessary
+          const dailyTotal = currentTotal + item.sales;
           const currentPeak = peakPointsMap.get(monthKey) || 0;
-          if (item.sales > currentPeak) {
-            peakPointsMap.set(monthKey, item.sales);
+          if (dailyTotal > currentPeak) {
+            peakPointsMap.set(monthKey, dailyTotal);
           }
         });
       });
 
-      // 按时间排序
-      allData.sort((a, b) => a.date.localeCompare(b.date));
+      // Convert to sorted arrays
+      const allData: SalesDataPoint[] = Array.from(dailyTotalMap.entries())
+        .map(([date, sales]) => ({
+          date,
+          sales,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
 
-      // 转换峰值点数据
-      const peakPoints = Array.from(peakPointsMap.entries()).map(
-        ([month, sales]) => ({
+      // Convert peak points
+      const peakPoints = Array.from(peakPointsMap.entries())
+        .map(([month, sales]) => ({
           date: `${month}-15`,
           sales,
-        })
-      );
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
 
-      const lineSeries: LineSeriesOption = {
-        name: "Sales",
-        type: "line",
+      const barSeries: BarSeriesOption = {
+        name: "Daily Sales",
+        type: "bar",
         data: allData.map((item) => item.sales),
-        smooth: true,
-        showSymbol: false,
-        lineStyle: {
-          width: 2,
+        barWidth: 6,
+        itemStyle: {
           color: theme.palette.primary.main,
-        },
-        areaStyle: {
-          color: {
-            type: "linear",
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              {
-                offset: 0,
-                color: theme.palette.primary.main + "40",
-              },
-              {
-                offset: 1,
-                color: theme.palette.primary.main + "00",
-              },
-            ],
-          },
+          opacity: 0.8,
         },
         emphasis: {
-          focus: "series",
+          itemStyle: {
+            color: theme.palette.primary.dark,
+            opacity: 1,
+          },
         },
       };
 
@@ -109,10 +101,10 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         name: "Monthly Peaks",
         type: "scatter",
         data: peakPoints.map((item) => [item.date, item.sales]),
-        symbolSize: 8,
+        symbolSize: 12,
         itemStyle: {
           color: theme.palette.background.paper,
-          borderColor: theme.palette.primary.main,
+          borderColor: theme.palette.secondary.main,
           borderWidth: 2,
         },
         emphasis: {
@@ -132,6 +124,11 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
             color: theme.palette.text.primary,
             fontSize: 16,
             fontWeight: "normal",
+          },
+          subtext: "Daily sales data and monthly peak values",
+          subtextStyle: {
+            color: theme.palette.text.secondary,
+            fontSize: 12,
           },
         },
         tooltip: {
@@ -154,15 +151,30 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
           formatter: (params: unknown) => {
             const typedParams = params as ChartParams[];
             if (Array.isArray(typedParams)) {
-              const sales = typedParams[0];
-              return `
+              const dailySales = typedParams.find(
+                (p) => p.seriesName === "Daily Sales"
+              );
+              const monthlyPeak = typedParams.find(
+                (p) => p.seriesName === "Monthly Peaks"
+              );
+
+              const formattedDate = new Date(
+                typedParams[0].axisValue
+              ).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              });
+
+              let content = `
                 <div style="padding: 10px;">
-                  <div style="margin-bottom: 6px; font-weight: bold; color: ${
-                    theme.palette.text.primary
-                  }">
-                    ${sales.axisValue}
-                  </div>
-                  <div style="display: flex; justify-content: space-between;">
+                  <div style="margin-bottom: 6px; font-weight: bold; color: ${theme.palette.text.primary}">
+                    ${formattedDate}
+                  </div>`;
+
+              if (dailySales) {
+                content += `
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="margin-right: 16px;">Sales (USD):</span>
                     <span style="color: ${
                       theme.palette.primary.main
@@ -172,11 +184,32 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
                         currency: "USD",
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 0,
-                      }).format(sales.value)}
+                      }).format(dailySales.value)}
                     </span>
-                  </div>
-                </div>
-              `;
+                  </div>`;
+              }
+
+              if (monthlyPeak) {
+                content += `
+                  <div style="display: flex; justify-content: space-between; color: ${
+                    theme.palette.text.secondary
+                  };">
+                    <span style="margin-right: 16px;">Monthly Peak:</span>
+                    <span style="color: ${
+                      theme.palette.secondary.main
+                    }; font-weight: bold">
+                      ${new Intl.NumberFormat("en-US", {
+                        style: "currency",
+                        currency: "USD",
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      }).format(monthlyPeak.value)}
+                    </span>
+                  </div>`;
+              }
+
+              content += `</div>`;
+              return content;
             }
             return "";
           },
@@ -184,39 +217,51 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         toolbox: {
           show: true,
           itemSize: 20,
-          itemGap: 15,
+          itemGap: 20,
           right: 20,
           top: 10,
           feature: {
             dataZoom: {
               show: true,
               title: {
-                zoom: "Zoom",
+                zoom: "Zoom Selection",
                 back: "Reset Zoom",
               },
             },
             restore: {
               show: true,
-              title: "Reset",
+              title: "Reset All",
             },
             saveAsImage: {
               show: true,
-              title: "Save as Image",
+              title: "Save Image",
               type: "png",
               excludeComponents: ["toolbox"],
             },
           },
+          tooltip: {
+            show: true,
+            backgroundColor: theme.palette.background.paper,
+            borderColor: theme.palette.divider,
+            textStyle: {
+              color: theme.palette.text.primary,
+            },
+            extraCssText:
+              "box-shadow: 0 0 3px rgba(0, 0, 0, 0.3); padding: 8px;",
+          },
         },
         legend: {
           show: true,
-          data: ["Sales", "Monthly Peaks"],
+          data: ["Daily Sales", "Monthly Peaks"],
           bottom: 60,
+          itemGap: 30,
           textStyle: {
             color: theme.palette.text.primary,
           },
+          padding: [5, 10],
         },
         grid: {
-          top: 70,
+          top: 100,
           left: 80,
           right: 80,
           bottom: 120,
@@ -240,7 +285,7 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         xAxis: {
           type: "category",
           data: allData.map((item) => item.date),
-          boundaryGap: false,
+          boundaryGap: true,
           axisLine: {
             lineStyle: {
               color: theme.palette.divider,
@@ -264,8 +309,11 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         yAxis: {
           type: "value",
           name: "Sales Amount (USD)",
+          nameLocation: "middle",
+          nameGap: 50,
           nameTextStyle: {
             color: theme.palette.text.secondary,
+            padding: [0, 0, 15, 0],
           },
           axisLine: {
             show: true,
@@ -292,13 +340,13 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
             },
           },
         },
-        series: [lineSeries, scatterSeries],
+        series: [barSeries, scatterSeries],
       };
 
       setChartOption(option);
       setIsLoading(false);
     } catch (error) {
-      console.error("Error generating chart options:", error);
+      console.error("Error generating sales chart options:", error);
       setIsLoading(false);
     }
   }, [dataChunks, theme]);
