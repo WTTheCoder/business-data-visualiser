@@ -1,11 +1,11 @@
 import { FC, useRef } from "react";
 import ReactEcharts from "echarts-for-react";
-import { SalesData } from "../../utils/mockData";
+import { DailyData } from "../../utils/mockData";
 import type { EChartsOption, TooltipComponentOption, ECharts } from "echarts";
 import { useTheme } from "@mui/material";
 
 interface SalesChartProps {
-  data: SalesData[];
+  data: DailyData[];
   onChartReady?: (instance: ECharts) => void;
 }
 
@@ -35,7 +35,7 @@ const SalesChart: FC<SalesChartProps> = ({ data, onChartReady }) => {
               ${sales.axisValue}
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span style="margin-right: 16px;">Sales:</span>
+              <span style="margin-right: 16px;">Sales (USD):</span>
               <span style="color: ${
                 theme.palette.primary.main
               }; font-weight: bold">
@@ -132,7 +132,7 @@ const SalesChart: FC<SalesChartProps> = ({ data, onChartReady }) => {
           bottom: 50,
           start: 0,
           end: 100,
-          height: 15,
+          height: 30, // Increased height
           borderColor: theme.palette.divider,
           backgroundColor: theme.palette.background.paper,
           fillerColor: theme.palette.action.hover,
@@ -147,7 +147,7 @@ const SalesChart: FC<SalesChartProps> = ({ data, onChartReady }) => {
         top: 70,
         left: 80,
         right: 80,
-        bottom: 90,
+        bottom: 120, // Increased bottom margin
         containLabel: true,
       },
       xAxis: {
@@ -169,6 +169,7 @@ const SalesChart: FC<SalesChartProps> = ({ data, onChartReady }) => {
             return date.toLocaleDateString("en-US", {
               year: "numeric",
               month: "short",
+              day: "numeric",
             });
           },
         },
@@ -178,7 +179,7 @@ const SalesChart: FC<SalesChartProps> = ({ data, onChartReady }) => {
       },
       yAxis: {
         type: "value",
-        name: "Sales Amount",
+        name: "Sales Amount (USD)",
         axisLine: {
           show: true,
           lineStyle: {
@@ -209,7 +210,7 @@ const SalesChart: FC<SalesChartProps> = ({ data, onChartReady }) => {
         {
           name: "Sales",
           type: "line",
-          data: data.map((item) => item.amount),
+          data: data.map((item) => item.sales),
           smooth: true,
           showSymbol: true,
           symbol: "circle",
@@ -233,11 +234,11 @@ const SalesChart: FC<SalesChartProps> = ({ data, onChartReady }) => {
               colorStops: [
                 {
                   offset: 0,
-                  color: theme.palette.primary.main + "40", // 40 is hex for 25% opacity
+                  color: theme.palette.primary.main + "40",
                 },
                 {
                   offset: 1,
-                  color: theme.palette.primary.main + "00", // 00 is hex for 0% opacity
+                  color: theme.palette.primary.main + "00",
                 },
               ],
             },

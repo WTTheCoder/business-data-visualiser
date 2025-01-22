@@ -1,51 +1,78 @@
-// import { useEffect } from "react";
-// import { Box, Typography } from "@mui/material";
-// import { useAppDispatch, useAppSelector } from "../hooks/reduxHooks";
-// import { setRawData } from "../store/slices/dataSlice";
-// import SalesChart from "../components/charts/SalesChart";
-// import RevenueChart from "../components/charts/RevenueChart";
-// import GrowthChart from "../components/charts/GrowthChart";
-// import DataFilters from "../components/filters/DataFilters";
-// import { generateMockData } from "../utils/mockData";
-
-import { FC } from "react";
+import { FC, useState } from "react";
 import { Box, Grid } from "@mui/material";
 import SalesChart from "../components/charts/SalesChart";
-import RevenueChart from "../components/charts/RevenueChart";
-import GrowthChart from "../components/charts/GrowthChart";
+import ProfitChart from "../components/charts/ProfitChart";
+import CostChart from "../components/charts/CostChart";
 import DataFilters from "../components/filters/DataFilters";
-import { salesData, revenueData, growthData } from "../utils/mockData";
-// import SalesChart from '../charts/SalesChart';
-// import RevenueChart from '../charts/RevenueChart';
-// import GrowthChart from '../charts/GrowthChart';
-// import DataFilters from '../filters/DataFilters';
-// import { salesData, revenueData, growthData } from '../../utils/mockData';
+import { mockData } from "../utils/mockData";
 
 const Dashboard: FC = () => {
+  const [filteredData, setFilteredData] = useState(mockData);
+
+  const handleDataFiltering = (
+    region: string,
+    startDate: Date | null,
+    endDate: Date | null
+  ) => {
+    let filtered = mockData;
+
+    if (region && region !== "all") {
+      filtered = filtered.filter((item) =>
+        region.startsWith("AU-")
+          ? item.subRegion === region
+          : item.region === region
+      );
+    }
+
+    if (startDate && endDate) {
+      filtered = filtered.filter((item) => {
+        const itemDate = new Date(item.date);
+        return itemDate >= startDate && itemDate <= endDate;
+      });
+    }
+
+    setFilteredData(filtered);
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <h1>Dashboard Overview</h1>
-      <DataFilters />
+      <DataFilters onFilterChange={handleDataFiltering} />
       <Grid container spacing={3}>
         <Grid item xs={12}>
           <Box
-            sx={{ backgroundColor: "background.paper", p: 2, borderRadius: 1 }}
+            sx={{
+              backgroundColor: "background.paper",
+              p: 2,
+              borderRadius: 1,
+              boxShadow: 1,
+            }}
           >
-            <SalesChart data={salesData} />
+            <SalesChart data={filteredData} />
           </Box>
         </Grid>
         <Grid item xs={12} md={6}>
           <Box
-            sx={{ backgroundColor: "background.paper", p: 2, borderRadius: 1 }}
+            sx={{
+              backgroundColor: "background.paper",
+              p: 2,
+              borderRadius: 1,
+              boxShadow: 1,
+            }}
           >
-            <RevenueChart data={revenueData} />
+            <ProfitChart data={filteredData} />
           </Box>
         </Grid>
         <Grid item xs={12} md={6}>
           <Box
-            sx={{ backgroundColor: "background.paper", p: 2, borderRadius: 1 }}
+            sx={{
+              backgroundColor: "background.paper",
+              p: 2,
+              borderRadius: 1,
+              boxShadow: 1,
+            }}
           >
-            <GrowthChart data={growthData} />
+            <CostChart data={filteredData} />
           </Box>
         </Grid>
       </Grid>

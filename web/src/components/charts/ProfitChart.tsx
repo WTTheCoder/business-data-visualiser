@@ -1,21 +1,21 @@
 import { FC, useRef } from "react";
 import ReactEcharts from "echarts-for-react";
-import { RevenueData } from "../../utils/mockData";
+import { DailyData } from "../../utils/mockData";
 import type { EChartsOption, TooltipComponentOption } from "echarts";
 import { useTheme } from "@mui/material";
 
-interface RevenueChartProps {
-  data: RevenueData[];
+interface ProfitChartProps {
+  data: DailyData[];
   onChartReady?: (instance: echarts.ECharts) => void;
 }
 
-interface EChartParams {
+interface ChartParams {
   seriesName: string;
   value: number;
   axisValue: string;
 }
 
-const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
+const ProfitChart: FC<ProfitChartProps> = ({ data, onChartReady }) => {
   const theme = useTheme();
   const chartRef = useRef<ReactEcharts>(null);
 
@@ -23,11 +23,13 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
     const tooltipFormatter: TooltipComponentOption["formatter"] = (
       params: unknown
     ) => {
-      const typedParams = params as EChartParams[];
+      const typedParams = params as ChartParams[];
 
       if (Array.isArray(typedParams)) {
-        const revenue = typedParams.find((p) => p.seriesName === "Revenue");
-        const growth = typedParams.find((p) => p.seriesName === "Growth Rate");
+        const profit = typedParams.find((p) => p.seriesName === "Profit");
+        const profitMargin = typedParams.find(
+          (p) => p.seriesName === "Profit Margin"
+        );
         return `
           <div style="padding: 10px;">
             <div style="margin-bottom: 6px; font-weight: bold; color: ${
@@ -36,30 +38,30 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
               ${typedParams[0].axisValue}
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span style="margin-right: 16px;">Revenue:</span>
+              <span style="margin-right: 16px;">Profit (USD):</span>
               <span style="color: ${
                 theme.palette.primary.main
               }; font-weight: bold">
                 ${
-                  revenue && typeof revenue.value === "number"
+                  profit && typeof profit.value === "number"
                     ? new Intl.NumberFormat("en-US", {
                         style: "currency",
                         currency: "USD",
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 0,
-                      }).format(revenue.value)
+                      }).format(profit.value)
                     : "N/A"
                 }
               </span>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span style="margin-right: 16px;">Growth Rate:</span>
+              <span style="margin-right: 16px;">Profit Margin:</span>
               <span style="color: ${
                 theme.palette.secondary.main
               }; font-weight: bold">
                 ${
-                  growth && typeof growth.value === "number"
-                    ? `${growth.value.toFixed(1)}%`
+                  profitMargin && typeof profitMargin.value === "number"
+                    ? `${profitMargin.value.toFixed(1)}%`
                     : "N/A"
                 }
               </span>
@@ -70,9 +72,26 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
       return "";
     };
 
+    // Calculate monthly aggregated data
+    const monthlyData = data.reduce((acc, item) => {
+      const month = item.date.substring(0, 7); // Get YYYY-MM
+      if (!acc[month]) {
+        acc[month] = { profit: 0, sales: 0 };
+      }
+      acc[month].profit += item.profit;
+      acc[month].sales += item.sales;
+      return acc;
+    }, {} as { [key: string]: { profit: number; sales: number } });
+
+    const months = Object.keys(monthlyData).sort();
+    const profitData = months.map((month) => monthlyData[month].profit);
+    const marginData = months.map(
+      (month) => (monthlyData[month].profit / monthlyData[month].sales) * 100
+    );
+
     return {
       title: {
-        text: "Revenue Analysis",
+        text: "Profit Analysis",
         left: "center",
         top: 10,
         textStyle: {
@@ -150,7 +169,7 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
           bottom: 50,
           start: 0,
           end: 100,
-          height: 15, // 减小滑动条高度
+          height: 30,
           borderColor: theme.palette.divider,
           backgroundColor: theme.palette.background.paper,
           fillerColor: theme.palette.action.hover,
@@ -163,9 +182,9 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
       ],
       grid: {
         top: 70,
-        left: 80, // 增加左侧宽度
-        right: 80, // 增加右侧宽度
-        bottom: 90,
+        left: 80,
+        right: 80,
+        bottom: 120,
         containLabel: true,
       },
       legend: {
@@ -177,7 +196,7 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
       },
       xAxis: {
         type: "category",
-        data: data.map((item) => item.period),
+        data: months,
         axisLine: {
           lineStyle: {
             color: theme.palette.divider,
@@ -188,8 +207,13 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
         },
         axisLabel: {
           color: theme.palette.text.secondary,
-          rotate: 0,
-          margin: 15,
+          formatter: (value: string) => {
+            const date = new Date(value);
+            return date.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+            });
+          },
         },
         splitLine: {
           show: false,
@@ -198,7 +222,7 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
       yAxis: [
         {
           type: "value",
-          name: "Revenue",
+          name: "Profit (USD)",
           position: "left",
           axisLine: {
             show: true,
@@ -228,7 +252,7 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
         },
         {
           type: "value",
-          name: "Growth Rate",
+          name: "Profit Margin (%)",
           position: "right",
           axisLine: {
             show: true,
@@ -247,10 +271,10 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
       ],
       series: [
         {
-          name: "Revenue",
+          name: "Profit",
           type: "bar",
-          data: data.map((item) => item.revenue),
-          barWidth: "25%", // 减小柱状图宽度
+          data: profitData,
+          barWidth: "25%",
           itemStyle: {
             color: theme.palette.primary.main,
             opacity: 0.9,
@@ -263,10 +287,10 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
           },
         },
         {
-          name: "Growth Rate",
+          name: "Profit Margin",
           type: "line",
           yAxisIndex: 1,
-          data: data.map((item) => item.growth),
+          data: marginData,
           symbolSize: 6,
           lineStyle: {
             width: 2,
@@ -298,4 +322,4 @@ const RevenueChart: FC<RevenueChartProps> = ({ data, onChartReady }) => {
   );
 };
 
-export default RevenueChart;
+export default ProfitChart;
