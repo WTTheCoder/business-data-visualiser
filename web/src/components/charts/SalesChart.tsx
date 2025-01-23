@@ -6,6 +6,8 @@ import type {
   ECharts,
   BarSeriesOption,
   ScatterSeriesOption,
+  ToolboxComponentOption,
+  DataZoomComponentOption,
 } from "echarts";
 import { useTheme } from "@mui/material";
 import { Box, CircularProgress } from "@mui/material";
@@ -31,28 +33,52 @@ interface ZoomState {
   end: number;
 }
 
+interface ChartState {
+  dataZoom?: ZoomState[];
+  toolbox?: {
+    feature?: {
+      dataZoom?: Partial<DataZoomComponentOption>;
+    };
+  };
+}
+
 const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [chartOption, setChartOption] = useState<EChartsOption>({});
   const chartRef = useRef<ReactEcharts>(null);
   const chartInstance = useRef<ECharts | null>(null);
-  const zoomStateRef = useRef<{ dataZoom?: ZoomState[] }>({});
+  const chartStateRef = useRef<ChartState>({});
 
-  // Save current zoom state
-  const saveZoomState = useCallback(() => {
+  const saveChartState = useCallback(() => {
     if (chartInstance.current) {
       const currentOption = chartInstance.current.getOption();
+
       if (Array.isArray(currentOption.dataZoom)) {
-        zoomStateRef.current.dataZoom = currentOption.dataZoom.map((zoom) => ({
+        chartStateRef.current.dataZoom = currentOption.dataZoom.map((zoom) => ({
           start: zoom.start as number,
           end: zoom.end as number,
         }));
       }
+
+      if (currentOption.toolbox && typeof currentOption.toolbox === "object") {
+        const toolbox = currentOption.toolbox as ToolboxComponentOption;
+        const dataZoom = toolbox.feature
+          ?.dataZoom as Partial<DataZoomComponentOption>;
+        if (dataZoom) {
+          chartStateRef.current.toolbox = {
+            feature: {
+              dataZoom: {
+                start: dataZoom.start,
+                end: dataZoom.end,
+              },
+            },
+          };
+        }
+      }
     }
   }, []);
 
-  // Create chart options with stored zoom state
   const createChartOptions = useCallback(
     (
       allData: SalesDataPoint[],
@@ -60,6 +86,43 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
       barSeries: BarSeriesOption,
       scatterSeries: ScatterSeriesOption
     ): EChartsOption => {
+      const toolboxConfig: ToolboxComponentOption = {
+        show: true,
+        itemSize: 20,
+        itemGap: 20,
+        right: 20,
+        top: 10,
+        showTitle: false,
+        feature: {
+          dataZoom: {
+            show: true,
+            title: {
+              zoom: "Zoom Selection",
+              back: "Reset Zoom",
+            },
+            xAxisIndex: [0],
+          },
+          restore: {
+            show: true,
+            title: "Reset All",
+          },
+          saveAsImage: {
+            show: true,
+            title: "Save Image",
+            type: "png",
+            excludeComponents: ["toolbox"],
+          },
+        },
+        tooltip: {
+          show: true,
+          backgroundColor: theme.palette.background.paper,
+          borderColor: theme.palette.divider,
+          textStyle: {
+            color: theme.palette.text.primary,
+          },
+          extraCssText: "box-shadow: 0 0 3px rgba(0, 0, 0, 0.3); padding: 8px;",
+        },
+      };
       return {
         title: {
           text: "Sales Overview",
@@ -163,43 +226,7 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
             return "";
           },
         },
-        toolbox: {
-          show: true,
-          itemSize: 20,
-          itemGap: 20,
-          right: 20,
-          top: 10,
-          showTitle: false,
-          feature: {
-            dataZoom: {
-              show: true,
-              title: {
-                zoom: "Zoom Selection",
-                back: "Reset Zoom",
-              },
-            },
-            restore: {
-              show: true,
-              title: "Reset All",
-            },
-            saveAsImage: {
-              show: true,
-              title: "Save Image",
-              type: "png",
-              excludeComponents: ["toolbox"],
-            },
-          },
-          tooltip: {
-            show: true,
-            backgroundColor: theme.palette.background.paper,
-            borderColor: theme.palette.divider,
-            textStyle: {
-              color: theme.palette.text.primary,
-            },
-            extraCssText:
-              "box-shadow: 0 0 3px rgba(0, 0, 0, 0.3); padding: 8px;",
-          },
-        },
+        toolbox: toolboxConfig,
         legend: {
           show: true,
           data: ["Daily Sales", "Monthly Peaks"],
@@ -220,16 +247,18 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         dataZoom: [
           {
             type: "inside",
-            start: zoomStateRef.current.dataZoom?.[0]?.start ?? 0,
-            end: zoomStateRef.current.dataZoom?.[0]?.end ?? 100,
+            start: chartStateRef.current.dataZoom?.[0]?.start ?? 0,
+            end: chartStateRef.current.dataZoom?.[0]?.end ?? 100,
+            xAxisIndex: [0],
           },
           {
             show: true,
             type: "slider",
             bottom: 10,
-            start: zoomStateRef.current.dataZoom?.[1]?.start ?? 0,
-            end: zoomStateRef.current.dataZoom?.[1]?.end ?? 100,
+            start: chartStateRef.current.dataZoom?.[1]?.start ?? 0,
+            end: chartStateRef.current.dataZoom?.[1]?.end ?? 100,
             height: 30,
+            xAxisIndex: [0],
           },
         ],
         xAxis: {
@@ -376,7 +405,7 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         },
       };
 
-      saveZoomState();
+      saveChartState();
       const options = createChartOptions(
         allData,
         monthlyPeaks,
@@ -389,7 +418,73 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
       console.error("Error generating sales chart options:", error);
       setIsLoading(false);
     }
-  }, [dataChunks, theme, createChartOptions, saveZoomState]);
+  }, [dataChunks, theme, createChartOptions, saveChartState]);
+
+  useEffect(() => {
+    if (chartInstance.current) {
+      saveChartState();
+
+      // Only update theme-related options
+      const themeOptions = {
+        title: {
+          textStyle: {
+            color: theme.palette.text.primary,
+          },
+          subtextStyle: {
+            color: theme.palette.text.secondary,
+          },
+        },
+        legend: {
+          textStyle: {
+            color: theme.palette.text.primary,
+          },
+        },
+        tooltip: {
+          backgroundColor: theme.palette.background.paper,
+          borderColor: theme.palette.divider,
+        },
+        xAxis: {
+          axisLine: {
+            lineStyle: {
+              color: theme.palette.divider,
+            },
+          },
+          axisLabel: {
+            color: theme.palette.text.secondary,
+          },
+        },
+        yAxis: {
+          axisLine: {
+            lineStyle: {
+              color: theme.palette.primary.main,
+            },
+          },
+          splitLine: {
+            lineStyle: {
+              color: theme.palette.divider,
+            },
+          },
+          axisLabel: {
+            color: theme.palette.text.secondary,
+          },
+        },
+      };
+
+      chartInstance.current.setOption(themeOptions);
+
+      const dataZoomState = chartStateRef.current.dataZoom?.[0];
+      const toolboxState = chartStateRef.current.toolbox?.feature?.dataZoom;
+
+      if (dataZoomState || toolboxState) {
+        chartInstance.current.dispatchAction({
+          type: "dataZoom",
+          start: dataZoomState?.start ?? toolboxState?.start ?? 0,
+          end: dataZoomState?.end ?? toolboxState?.end ?? 100,
+          xAxisIndex: [0],
+        });
+      }
+    }
+  }, [theme, saveChartState]);
 
   const handleChartReady = useCallback(
     (instance: ECharts) => {
