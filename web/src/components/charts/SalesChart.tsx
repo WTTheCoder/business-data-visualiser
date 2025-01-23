@@ -26,101 +26,41 @@ interface ChartParams {
   seriesName: string;
 }
 
+interface ZoomState {
+  start: number;
+  end: number;
+}
+
 const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [chartOption, setChartOption] = useState<EChartsOption>({});
   const chartRef = useRef<ReactEcharts>(null);
   const chartInstance = useRef<ECharts | null>(null);
+  const zoomStateRef = useRef<{ dataZoom?: ZoomState[] }>({});
 
-  useEffect(() => {
-    console.log("Processing sales data chunks:", dataChunks.length);
-
-    if (dataChunks.length === 0) {
-      setIsLoading(false);
-      return;
+  // Save current zoom state
+  const saveZoomState = useCallback(() => {
+    if (chartInstance.current) {
+      const currentOption = chartInstance.current.getOption();
+      if (Array.isArray(currentOption.dataZoom)) {
+        zoomStateRef.current.dataZoom = currentOption.dataZoom.map((zoom) => ({
+          start: zoom.start as number,
+          end: zoom.end as number,
+        }));
+      }
     }
+  }, []);
 
-    try {
-      // Step 1: Aggregate daily sales
-      const dailyTotalMap = new Map<string, number>();
-
-      dataChunks.forEach((chunk) => {
-        chunk.forEach((item) => {
-          const dateKey = item.date;
-          const currentTotal = dailyTotalMap.get(dateKey) || 0;
-          dailyTotalMap.set(dateKey, currentTotal + item.sales);
-        });
-      });
-
-      // Step 2: Convert to array and sort by date
-      const allData: SalesDataPoint[] = Array.from(dailyTotalMap.entries())
-        .map(([date, sales]) => ({
-          date,
-          sales,
-        }))
-        .sort((a, b) => a.date.localeCompare(b.date));
-
-      // Step 3: Group by month and find peak values
-      const monthlyPeaks = new Map<string, number>();
-
-      allData.forEach((data) => {
-        const monthKey = data.date.substring(0, 7); // YYYY-MM
-        const currentPeak = monthlyPeaks.get(monthKey) || 0;
-        if (data.sales > currentPeak) {
-          monthlyPeaks.set(monthKey, data.sales);
-        }
-      });
-
-      // Step 4: Create peak points array
-      const peakPoints = Array.from(monthlyPeaks.entries())
-        .map(([month, sales]) => ({
-          date: `${month}-01`,
-          sales,
-        }))
-        .sort((a, b) => a.date.localeCompare(b.date));
-
-      console.log(
-        "Monthly peaks found:",
-        peakPoints.map((p) => `${p.date}: ${p.sales}`).join(", ")
-      );
-
-      const barSeries: BarSeriesOption = {
-        name: "Daily Sales",
-        type: "bar",
-        data: allData.map((item) => item.sales),
-        barWidth: 6,
-        itemStyle: {
-          color: theme.palette.primary.main,
-          opacity: 0.8,
-        },
-        emphasis: {
-          itemStyle: {
-            color: theme.palette.primary.dark,
-            opacity: 1,
-          },
-        },
-      };
-
-      const scatterSeries: ScatterSeriesOption = {
-        name: "Monthly Peaks",
-        type: "scatter",
-        data: peakPoints.map((item) => [item.date, item.sales]),
-        symbolSize: 12,
-        itemStyle: {
-          color: theme.palette.background.paper,
-          borderColor: theme.palette.secondary.main,
-          borderWidth: 2,
-        },
-        emphasis: {
-          scale: true,
-          itemStyle: {
-            borderWidth: 3,
-          },
-        },
-      };
-
-      const option: EChartsOption = {
+  // Create chart options with stored zoom state
+  const createChartOptions = useCallback(
+    (
+      allData: SalesDataPoint[],
+      monthlyPeaks: Map<string, number>,
+      barSeries: BarSeriesOption,
+      scatterSeries: ScatterSeriesOption
+    ): EChartsOption => {
+      return {
         title: {
           text: "Sales Overview",
           left: "center",
@@ -280,15 +220,15 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         dataZoom: [
           {
             type: "inside",
-            start: 0,
-            end: 100,
+            start: zoomStateRef.current.dataZoom?.[0]?.start ?? 0,
+            end: zoomStateRef.current.dataZoom?.[0]?.end ?? 100,
           },
           {
             show: true,
             type: "slider",
             bottom: 10,
-            start: 0,
-            end: 100,
+            start: zoomStateRef.current.dataZoom?.[1]?.start ?? 0,
+            end: zoomStateRef.current.dataZoom?.[1]?.end ?? 100,
             height: 30,
           },
         ],
@@ -308,7 +248,6 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
             color: theme.palette.text.secondary,
             formatter: (value: string) => {
               const date = new Date(value);
-              // Only show label for the first day of each month
               if (date.getDate() === 1) {
                 return date.toLocaleDateString("en-US", {
                   year: "numeric",
@@ -357,14 +296,100 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         },
         series: [barSeries, scatterSeries],
       };
+    },
+    [theme]
+  );
 
-      setChartOption(option);
+  useEffect(() => {
+    if (dataChunks.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const dailyTotalMap = new Map<string, number>();
+
+      dataChunks.forEach((chunk) => {
+        chunk.forEach((item) => {
+          const dateKey = item.date;
+          const currentTotal = dailyTotalMap.get(dateKey) || 0;
+          dailyTotalMap.set(dateKey, currentTotal + item.sales);
+        });
+      });
+
+      const allData: SalesDataPoint[] = Array.from(dailyTotalMap.entries())
+        .map(([date, sales]) => ({
+          date,
+          sales,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const monthlyPeaks = new Map<string, number>();
+
+      allData.forEach((data) => {
+        const monthKey = data.date.substring(0, 7);
+        const currentPeak = monthlyPeaks.get(monthKey) || 0;
+        if (data.sales > currentPeak) {
+          monthlyPeaks.set(monthKey, data.sales);
+        }
+      });
+
+      const peakPoints = Array.from(monthlyPeaks.entries())
+        .map(([month, sales]) => ({
+          date: `${month}-01`,
+          sales,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const barSeries: BarSeriesOption = {
+        name: "Daily Sales",
+        type: "bar",
+        data: allData.map((item) => item.sales),
+        barWidth: 6,
+        itemStyle: {
+          color: theme.palette.primary.main,
+          opacity: 0.8,
+        },
+        emphasis: {
+          itemStyle: {
+            color: theme.palette.primary.dark,
+            opacity: 1,
+          },
+        },
+      };
+
+      const scatterSeries: ScatterSeriesOption = {
+        name: "Monthly Peaks",
+        type: "scatter",
+        data: peakPoints.map((item) => [item.date, item.sales]),
+        symbolSize: 12,
+        itemStyle: {
+          color: theme.palette.background.paper,
+          borderColor: theme.palette.secondary.main,
+          borderWidth: 2,
+        },
+        emphasis: {
+          scale: true,
+          itemStyle: {
+            borderWidth: 3,
+          },
+        },
+      };
+
+      saveZoomState();
+      const options = createChartOptions(
+        allData,
+        monthlyPeaks,
+        barSeries,
+        scatterSeries
+      );
+      setChartOption(options);
       setIsLoading(false);
     } catch (error) {
       console.error("Error generating sales chart options:", error);
       setIsLoading(false);
     }
-  }, [dataChunks, theme]);
+  }, [dataChunks, theme, createChartOptions, saveZoomState]);
 
   const handleChartReady = useCallback(
     (instance: ECharts) => {

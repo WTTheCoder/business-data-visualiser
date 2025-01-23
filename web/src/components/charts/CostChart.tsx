@@ -10,6 +10,11 @@ interface CostChartProps {
   onChartReady?: (instance: ECharts) => void;
 }
 
+interface ZoomState {
+  start: number;
+  end: number;
+}
+
 const COST_CATEGORIES = [
   "Tax",
   "Salary",
@@ -26,63 +31,35 @@ const CostChart: FC<CostChartProps> = ({ dataChunks, onChartReady }) => {
   const [chartOption, setChartOption] = useState<EChartsOption>({});
   const chartRef = useRef<ReactEcharts>(null);
   const chartInstance = useRef<ECharts | null>(null);
+  const zoomStateRef = useRef<{ dataZoom?: ZoomState[] }>({});
 
-  useEffect(() => {
-    console.log("Processing cost data chunks:", dataChunks.length);
-
-    if (dataChunks.length === 0) {
-      setIsLoading(false);
-      return;
+  // Save current zoom state
+  const saveZoomState = useCallback(() => {
+    if (chartInstance.current) {
+      const currentOption = chartInstance.current.getOption();
+      if (Array.isArray(currentOption.dataZoom)) {
+        zoomStateRef.current.dataZoom = currentOption.dataZoom.map((zoom) => ({
+          start: zoom.start as number,
+          end: zoom.end as number,
+        }));
+      }
     }
+  }, []);
 
-    try {
-      const monthlyData = new Map<string, { [key: string]: number }>();
-
-      // Aggregate data by month
-      dataChunks.forEach((chunk) => {
-        chunk.forEach((item) => {
-          const month = item.date.substring(0, 7);
-          if (!monthlyData.has(month)) {
-            monthlyData.set(month, {});
-          }
-          const monthData = monthlyData.get(month)!;
-
-          Object.entries(item.costs.breakdown).forEach(([category, value]) => {
-            monthData[category] = (monthData[category] || 0) + value;
-          });
-        });
-      });
-
-      // Get sorted months
-      const months = Array.from(monthlyData.keys()).sort();
-
+  // Create chart options with stored zoom state
+  const createChartOptions = useCallback(
+    (months: string[], series: BarSeriesOption[]): EChartsOption => {
       const colors = [
-        theme.palette.info.main, // Tax
-        theme.palette.success.main, // Salary
-        theme.palette.warning.main, // Benefits
-        theme.palette.error.main, // Rent
-        theme.palette.primary.main, // Utilities
-        theme.palette.secondary.main, // Marketing
-        theme.palette.grey[500], // Others
+        theme.palette.info.main,
+        theme.palette.success.main,
+        theme.palette.warning.main,
+        theme.palette.error.main,
+        theme.palette.primary.main,
+        theme.palette.secondary.main,
+        theme.palette.grey[500],
       ];
 
-      // Generate series data for each cost category
-      const series: BarSeriesOption[] = COST_CATEGORIES.map(
-        (category, index) => ({
-          name: category,
-          type: "bar",
-          stack: "total",
-          emphasis: { focus: "series" },
-          itemStyle: {
-            color: colors[index],
-          },
-          data: months.map(
-            (month) => monthlyData.get(month)![category.toLowerCase()] || 0
-          ),
-        })
-      );
-
-      const option: EChartsOption = {
+      return {
         title: {
           text: "Cost Analysis",
           left: "center",
@@ -227,15 +204,15 @@ const CostChart: FC<CostChartProps> = ({ dataChunks, onChartReady }) => {
         dataZoom: [
           {
             type: "inside",
-            start: 0,
-            end: 100,
+            start: zoomStateRef.current.dataZoom?.[0]?.start ?? 0,
+            end: zoomStateRef.current.dataZoom?.[0]?.end ?? 100,
           },
           {
             show: true,
             type: "slider",
             bottom: 10,
-            start: 0,
-            end: 100,
+            start: zoomStateRef.current.dataZoom?.[1]?.start ?? 0,
+            end: zoomStateRef.current.dataZoom?.[1]?.end ?? 100,
             height: 30,
           },
         ],
@@ -295,16 +272,62 @@ const CostChart: FC<CostChartProps> = ({ dataChunks, onChartReady }) => {
             },
           },
         },
-        series,
+        series: series.map((s, index) => ({
+          ...s,
+          itemStyle: {
+            ...s.itemStyle,
+            color: colors[index],
+          },
+        })),
       };
+    },
+    [theme]
+  );
 
-      setChartOption(option);
+  useEffect(() => {
+    if (dataChunks.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const monthlyData = new Map<string, { [key: string]: number }>();
+
+      dataChunks.forEach((chunk) => {
+        chunk.forEach((item) => {
+          const month = item.date.substring(0, 7);
+          if (!monthlyData.has(month)) {
+            monthlyData.set(month, {});
+          }
+          const monthData = monthlyData.get(month)!;
+
+          Object.entries(item.costs.breakdown).forEach(([category, value]) => {
+            monthData[category] = (monthData[category] || 0) + value;
+          });
+        });
+      });
+
+      const months = Array.from(monthlyData.keys()).sort();
+
+      const series: BarSeriesOption[] = COST_CATEGORIES.map((category) => ({
+        name: category,
+        type: "bar",
+        stack: "total",
+        emphasis: { focus: "series" },
+        data: months.map(
+          (month) => monthlyData.get(month)![category.toLowerCase()] || 0
+        ),
+      }));
+
+      saveZoomState();
+      const options = createChartOptions(months, series);
+      setChartOption(options);
       setIsLoading(false);
     } catch (error) {
       console.error("Error generating cost chart options:", error);
       setIsLoading(false);
     }
-  }, [dataChunks, theme]);
+  }, [dataChunks, theme, createChartOptions, saveZoomState]);
 
   const handleChartReady = useCallback(
     (instance: ECharts) => {

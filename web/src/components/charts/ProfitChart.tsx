@@ -21,83 +21,40 @@ interface ProfitDataPoint {
   margin: number;
 }
 
+interface ZoomState {
+  start: number;
+  end: number;
+}
+
 const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
   const theme = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [chartOption, setChartOption] = useState<EChartsOption>({});
   const chartRef = useRef<ReactEcharts>(null);
   const chartInstance = useRef<ECharts | null>(null);
+  const zoomStateRef = useRef<{ dataZoom?: ZoomState[] }>({});
 
-  useEffect(() => {
-    console.log("Processing profit data chunks:", dataChunks.length);
-
-    if (dataChunks.length === 0) {
-      setIsLoading(false);
-      return;
+  // Save current zoom state
+  const saveZoomState = useCallback(() => {
+    if (chartInstance.current) {
+      const currentOption = chartInstance.current.getOption();
+      if (Array.isArray(currentOption.dataZoom)) {
+        zoomStateRef.current.dataZoom = currentOption.dataZoom.map((zoom) => ({
+          start: zoom.start as number,
+          end: zoom.end as number,
+        }));
+      }
     }
+  }, []);
 
-    try {
-      const monthlyData = new Map<string, { profit: number; sales: number }>();
-
-      // Process all chunks at once
-      dataChunks.forEach((chunk) => {
-        chunk.forEach((item) => {
-          const month = item.date.substring(0, 7);
-          const current = monthlyData.get(month) || { profit: 0, sales: 0 };
-          monthlyData.set(month, {
-            profit: current.profit + item.profit,
-            sales: current.sales + item.sales,
-          });
-        });
-      });
-
-      // Convert to array and sort
-      const processedData: ProfitDataPoint[] = Array.from(monthlyData.entries())
-        .map(([month, data]) => ({
-          month,
-          profit: data.profit,
-          margin: (data.profit / data.sales) * 100,
-        }))
-        .sort((a, b) => a.month.localeCompare(b.month));
-
-      const barSeries: BarSeriesOption = {
-        name: "Profit",
-        type: "bar",
-        data: processedData.map((item) => item.profit),
-        barWidth: "25%",
-        itemStyle: {
-          color: theme.palette.primary.main,
-          opacity: 0.9,
-        },
-        emphasis: {
-          itemStyle: {
-            opacity: 1,
-          },
-        },
-      };
-
-      const lineSeries: LineSeriesOption = {
-        name: "Profit Margin",
-        type: "line",
-        yAxisIndex: 1,
-        data: processedData.map((item) => item.margin),
-        symbolSize: 8,
-        lineStyle: {
-          width: 2,
-          color: theme.palette.secondary.main,
-        },
-        itemStyle: {
-          color: theme.palette.secondary.main,
-        },
-        emphasis: {
-          focus: "series",
-          itemStyle: {
-            borderWidth: 2,
-          },
-        },
-      };
-
-      const option: EChartsOption = {
+  // Create chart options with stored zoom state
+  const createChartOptions = useCallback(
+    (
+      processedData: ProfitDataPoint[],
+      barSeries: BarSeriesOption,
+      lineSeries: LineSeriesOption
+    ): EChartsOption => {
+      return {
         title: {
           text: "Profit Analysis",
           left: "center",
@@ -233,15 +190,15 @@ const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
         dataZoom: [
           {
             type: "inside",
-            start: 0,
-            end: 100,
+            start: zoomStateRef.current.dataZoom?.[0]?.start ?? 0,
+            end: zoomStateRef.current.dataZoom?.[0]?.end ?? 100,
           },
           {
             show: true,
             type: "slider",
             bottom: 10,
-            start: 0,
-            end: 100,
+            start: zoomStateRef.current.dataZoom?.[1]?.start ?? 0,
+            end: zoomStateRef.current.dataZoom?.[1]?.end ?? 100,
             height: 30,
           },
         ],
@@ -319,14 +276,84 @@ const ProfitChart: FC<ProfitChartProps> = ({ dataChunks, onChartReady }) => {
         ],
         series: [barSeries, lineSeries],
       };
+    },
+    [theme]
+  );
 
-      setChartOption(option);
+  useEffect(() => {
+    if (dataChunks.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const monthlyData = new Map<string, { profit: number; sales: number }>();
+
+      dataChunks.forEach((chunk) => {
+        chunk.forEach((item) => {
+          const month = item.date.substring(0, 7);
+          const current = monthlyData.get(month) || { profit: 0, sales: 0 };
+          monthlyData.set(month, {
+            profit: current.profit + item.profit,
+            sales: current.sales + item.sales,
+          });
+        });
+      });
+
+      const processedData: ProfitDataPoint[] = Array.from(monthlyData.entries())
+        .map(([month, data]) => ({
+          month,
+          profit: data.profit,
+          margin: (data.profit / data.sales) * 100,
+        }))
+        .sort((a, b) => a.month.localeCompare(b.month));
+
+      const barSeries: BarSeriesOption = {
+        name: "Profit",
+        type: "bar",
+        data: processedData.map((item) => item.profit),
+        barWidth: "25%",
+        itemStyle: {
+          color: theme.palette.primary.main,
+          opacity: 0.9,
+        },
+        emphasis: {
+          itemStyle: {
+            opacity: 1,
+          },
+        },
+      };
+
+      const lineSeries: LineSeriesOption = {
+        name: "Profit Margin",
+        type: "line",
+        yAxisIndex: 1,
+        data: processedData.map((item) => item.margin),
+        symbolSize: 8,
+        lineStyle: {
+          width: 2,
+          color: theme.palette.secondary.main,
+        },
+        itemStyle: {
+          color: theme.palette.secondary.main,
+        },
+        emphasis: {
+          focus: "series",
+          itemStyle: {
+            borderWidth: 2,
+          },
+        },
+      };
+
+      saveZoomState();
+      const options = createChartOptions(processedData, barSeries, lineSeries);
+      setChartOption(options);
       setIsLoading(false);
     } catch (error) {
       console.error("Error generating profit chart options:", error);
       setIsLoading(false);
     }
-  }, [dataChunks, theme]);
+  }, [dataChunks, theme, createChartOptions, saveZoomState]);
 
   const handleChartReady = useCallback(
     (instance: ECharts) => {
