@@ -40,28 +40,21 @@ const Dashboard: FC = () => {
     if (filterCriteria.region !== "all") {
       console.log("Applying region filter for:", filterCriteria.region);
 
-      if (filterCriteria.region.startsWith("AU-")) {
-        // Handle Australian states
+      if (filterCriteria.region === "AU") {
+        // For all of Australia, include all Australian states and territories
+        filtered = filtered.filter((item) => item.region === "AU");
+      } else if (filterCriteria.region.startsWith("AU-")) {
+        // Handle specific Australian states
         const state = filterCriteria.region.split("-")[1];
         console.log("Filtering for AU state:", state);
         filtered = filtered.filter(
           (item) => item.region === "AU" && item.subRegion === state
         );
       } else {
-        // Handle country level
-        console.log("Filtering for country:", filterCriteria.region);
-        filtered = filtered.filter((item) => {
-          const isMatch =
-            item.region === filterCriteria.region && !item.subRegion;
-          if (isMatch) {
-            console.log("Matched country data:", {
-              date: item.date,
-              region: item.region,
-              sales: item.sales,
-            });
-          }
-          return isMatch;
-        });
+        // Handle other countries
+        filtered = filtered.filter(
+          (item) => item.region === filterCriteria.region
+        );
       }
 
       console.log("After region filtering:", {

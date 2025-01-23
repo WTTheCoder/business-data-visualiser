@@ -48,13 +48,15 @@ const DataFilters: FC<DataFilterProps> = ({
   const handleRegionSelect = (event: SelectChangeEvent<string>) => {
     const newRegion = event.target.value;
     console.log("Region selection changed to:", newRegion);
-    setSelectedRegion(newRegion);
-    onFilterChange(newRegion, startDate, endDate);
 
-    // Handle Australia expansion
-    if (newRegion === "AU" || newRegion.startsWith("AU-")) {
-      setExpandedRegion("AU");
+    if (newRegion === "AU") {
+      // Only update region and data, don't expand
+      setSelectedRegion(newRegion);
+      onFilterChange(newRegion, startDate, endDate);
     } else {
+      setSelectedRegion(newRegion);
+      onFilterChange(newRegion, startDate, endDate);
+      // Close Australia expansion if selecting other regions
       setExpandedRegion(null);
     }
   };
@@ -79,6 +81,7 @@ const DataFilters: FC<DataFilterProps> = ({
 
   const handleAUExpand = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Only toggle expansion, don't change the data
     setExpandedRegion(expandedRegion === "AU" ? null : "AU");
   };
 
@@ -118,6 +121,17 @@ const DataFilters: FC<DataFilterProps> = ({
           value={selectedRegion}
           label="Region"
           onChange={handleRegionSelect}
+          renderValue={(value) => {
+            if (value === "all") return "All Regions";
+            if (value.startsWith("AU-")) {
+              const state = regions
+                .find((r) => r.code === "AU")
+                ?.subRegions?.find((sr) => value === `AU-${sr.code}`);
+              return state ? state.name : value;
+            }
+            const region = regions.find((r) => r.code === value);
+            return region ? region.name : value;
+          }}
           MenuProps={{
             PaperProps: {
               sx: { maxHeight: 500 },
@@ -130,11 +144,10 @@ const DataFilters: FC<DataFilterProps> = ({
               <MenuItem
                 value={region.code}
                 onClick={() => {
-                  if (region.code !== "AU") {
-                    handleRegionSelect({
-                      target: { value: region.code },
-                    } as SelectChangeEvent<string>);
-                  }
+                  // Handle direct click on region
+                  const newRegion = region.code;
+                  setSelectedRegion(newRegion);
+                  onFilterChange(newRegion, startDate, endDate);
                 }}
                 sx={{
                   display: "flex",
