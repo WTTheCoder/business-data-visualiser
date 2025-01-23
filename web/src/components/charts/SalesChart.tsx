@@ -42,29 +42,18 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
     }
 
     try {
+      // Step 1: Aggregate daily sales
       const dailyTotalMap = new Map<string, number>();
-      const peakPointsMap = new Map<string, number>();
 
-      // Aggregate daily sales and find monthly peaks
       dataChunks.forEach((chunk) => {
         chunk.forEach((item) => {
           const dateKey = item.date;
-          const monthKey = dateKey.substring(0, 7);
-
-          // Aggregate daily total
           const currentTotal = dailyTotalMap.get(dateKey) || 0;
           dailyTotalMap.set(dateKey, currentTotal + item.sales);
-
-          // Update monthly peak if necessary
-          const dailyTotal = currentTotal + item.sales;
-          const currentPeak = peakPointsMap.get(monthKey) || 0;
-          if (dailyTotal > currentPeak) {
-            peakPointsMap.set(monthKey, dailyTotal);
-          }
         });
       });
 
-      // Convert to sorted arrays
+      // Step 2: Convert to array and sort by date
       const allData: SalesDataPoint[] = Array.from(dailyTotalMap.entries())
         .map(([date, sales]) => ({
           date,
@@ -72,13 +61,29 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      // Convert peak points
-      const peakPoints = Array.from(peakPointsMap.entries())
+      // Step 3: Group by month and find peak values
+      const monthlyPeaks = new Map<string, number>();
+
+      allData.forEach((data) => {
+        const monthKey = data.date.substring(0, 7); // YYYY-MM
+        const currentPeak = monthlyPeaks.get(monthKey) || 0;
+        if (data.sales > currentPeak) {
+          monthlyPeaks.set(monthKey, data.sales);
+        }
+      });
+
+      // Step 4: Create peak points array
+      const peakPoints = Array.from(monthlyPeaks.entries())
         .map(([month, sales]) => ({
-          date: `${month}-15`,
+          date: `${month}-01`,
           sales,
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
+
+      console.log(
+        "Monthly peaks found:",
+        peakPoints.map((p) => `${p.date}: ${p.sales}`).join(", ")
+      );
 
       const barSeries: BarSeriesOption = {
         name: "Daily Sales",
@@ -158,13 +163,26 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
                 (p) => p.seriesName === "Monthly Peaks"
               );
 
-              const formattedDate = new Date(
-                typedParams[0].axisValue
-              ).toLocaleDateString("en-US", {
+              const date = new Date(typedParams[0].axisValue);
+              const monthKey = `${date.getFullYear()}-${String(
+                date.getMonth() + 1
+              ).padStart(2, "0")}`;
+              const currentMonthPeak = monthlyPeaks.get(monthKey);
+
+              const formattedDate = date.toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "long",
                 day: "numeric",
               });
+
+              const formatCurrency = (value: number) => {
+                return new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency: "USD",
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                }).format(value);
+              };
 
               let content = `
                 <div style="padding: 10px;">
@@ -172,24 +190,20 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
                     ${formattedDate}
                   </div>`;
 
-              if (dailySales) {
+              if (dailySales && typeof dailySales.value === "number") {
                 content += `
                   <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="margin-right: 16px;">Sales (USD):</span>
                     <span style="color: ${
                       theme.palette.primary.main
                     }; font-weight: bold">
-                      ${new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: "USD",
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0,
-                      }).format(dailySales.value)}
+                      ${formatCurrency(dailySales.value)}
                     </span>
                   </div>`;
               }
 
-              if (monthlyPeak) {
+              const peakValue = monthlyPeak?.value ?? currentMonthPeak;
+              if (typeof peakValue === "number") {
                 content += `
                   <div style="display: flex; justify-content: space-between; color: ${
                     theme.palette.text.secondary
@@ -198,12 +212,7 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
                     <span style="color: ${
                       theme.palette.secondary.main
                     }; font-weight: bold">
-                      ${new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: "USD",
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0,
-                      }).format(monthlyPeak.value)}
+                      ${formatCurrency(peakValue)}
                     </span>
                   </div>`;
               }
@@ -299,12 +308,17 @@ const SalesChart: FC<SalesChartProps> = ({ dataChunks, onChartReady }) => {
             color: theme.palette.text.secondary,
             formatter: (value: string) => {
               const date = new Date(value);
-              return date.toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              });
+              // Only show label for the first day of each month
+              if (date.getDate() === 1) {
+                return date.toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                });
+              }
+              return "";
             },
+            interval: 0,
           },
         },
         yAxis: {
