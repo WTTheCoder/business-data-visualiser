@@ -1,4 +1,4 @@
-import { FC, useState, useEffect, useCallback } from "react";
+import { FC, useState } from "react";
 import {
   Box,
   FormControl,
@@ -18,6 +18,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import ChevronRight from "@mui/icons-material/ChevronRight";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import { regions } from "../../utils/mockData";
+import type { RegionData } from "../../utils/mockData";
 
 interface DataFilterProps {
   onFilterChange: (
@@ -37,35 +38,49 @@ const DataFilters: FC<DataFilterProps> = ({
   const [endDate, setEndDate] = useState<Date | null>(new Date(2025, 0, 31));
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
 
-  const findRegionName = useCallback((code: string): string => {
-    if (code === "all") return "All Regions";
+  // Sort regions (Australia first, then alphabetically)
+  const sortedRegions = [...regions].sort((a: RegionData, b: RegionData) => {
+    if (a.code === "AU") return -1;
+    if (b.code === "AU") return 1;
+    return a.name.localeCompare(b.name);
+  });
 
-    if (code.startsWith("AU-")) {
-      const subRegionCode = code.split("-")[1];
-      const region = regions.find((r) => r.code === "AU");
-      const subRegion = region?.subRegions?.find(
-        (sr) => sr.code === subRegionCode
-      );
-      return subRegion ? subRegion.name : code;
-    }
-
-    const region = regions.find((r) => r.code === code);
-    return region ? region.name : code;
-  }, []);
-
-  const handleRegionChange = useCallback((event: SelectChangeEvent<string>) => {
+  const handleRegionSelect = (event: SelectChangeEvent<string>) => {
     const newRegion = event.target.value;
+    console.log("Region selection changed to:", newRegion);
     setSelectedRegion(newRegion);
-    if (newRegion === "AU") {
+    onFilterChange(newRegion, startDate, endDate);
+
+    // Handle Australia expansion
+    if (newRegion === "AU" || newRegion.startsWith("AU-")) {
       setExpandedRegion("AU");
     } else {
       setExpandedRegion(null);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    onFilterChange(selectedRegion, startDate, endDate);
-  }, [selectedRegion, startDate, endDate, onFilterChange]);
+  const handleStartDateChange = (date: Date | null) => {
+    console.log("Start date changed:", date);
+    setStartDate(date);
+    onFilterChange(selectedRegion, date, endDate);
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    console.log("End date changed:", date);
+    setEndDate(date);
+    onFilterChange(selectedRegion, startDate, date);
+  };
+
+  const handleStateSelect = (code: string) => {
+    console.log("AU state selected:", code);
+    setSelectedRegion(code);
+    onFilterChange(code, startDate, endDate);
+  };
+
+  const handleAUExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedRegion(expandedRegion === "AU" ? null : "AU");
+  };
 
   return (
     <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
@@ -74,7 +89,7 @@ const DataFilters: FC<DataFilterProps> = ({
           <DatePicker
             label="Start Date"
             value={startDate}
-            onChange={(newValue: Date | null) => setStartDate(newValue)}
+            onChange={handleStartDateChange}
             minDate={new Date(2024, 0, 1)}
             maxDate={new Date(2025, 0, 31)}
             renderInput={(params) => (
@@ -86,7 +101,7 @@ const DataFilters: FC<DataFilterProps> = ({
           <DatePicker
             label="End Date"
             value={endDate}
-            onChange={(newValue: Date | null) => setEndDate(newValue)}
+            onChange={handleEndDateChange}
             minDate={startDate || new Date(2024, 0, 1)}
             maxDate={new Date(2025, 0, 31)}
             renderInput={(params) => (
@@ -97,12 +112,12 @@ const DataFilters: FC<DataFilterProps> = ({
       </LocalizationProvider>
 
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>Region</InputLabel>
+        <InputLabel id="region-select-label">Region</InputLabel>
         <Select
+          labelId="region-select-label"
           value={selectedRegion}
           label="Region"
-          onChange={handleRegionChange}
-          renderValue={(selected) => findRegionName(selected)}
+          onChange={handleRegionSelect}
           MenuProps={{
             PaperProps: {
               sx: { maxHeight: 500 },
@@ -110,10 +125,17 @@ const DataFilters: FC<DataFilterProps> = ({
           }}
         >
           <MenuItem value="all">All Regions</MenuItem>
-          {regions.map((region) => (
+          {sortedRegions.map((region) => (
             <Box key={region.code}>
               <MenuItem
                 value={region.code}
+                onClick={() => {
+                  if (region.code !== "AU") {
+                    handleRegionSelect({
+                      target: { value: region.code },
+                    } as SelectChangeEvent<string>);
+                  }
+                }}
                 sx={{
                   display: "flex",
                   alignItems: "center",
@@ -133,13 +155,7 @@ const DataFilters: FC<DataFilterProps> = ({
                 </ListItemIcon>
                 <ListItemText primary={region.name} />
                 {region.code === "AU" && region.subRegions && (
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpandedRegion(expandedRegion === "AU" ? null : "AU");
-                    }}
-                  >
+                  <IconButton size="small" onClick={handleAUExpand}>
                     {expandedRegion === "AU" ? (
                       <ExpandMore />
                     ) : (
@@ -154,10 +170,14 @@ const DataFilters: FC<DataFilterProps> = ({
                   <Collapse in={true} timeout="auto">
                     {region.subRegions
                       .filter((sr) => sr.code !== "ALL")
+                      .sort((a, b) => a.name.localeCompare(b.name))
                       .map((subRegion) => (
                         <MenuItem
                           key={subRegion.code}
                           value={`AU-${subRegion.code}`}
+                          onClick={() =>
+                            handleStateSelect(`AU-${subRegion.code}`)
+                          }
                           sx={{ pl: 4 }}
                         >
                           <ListItemIcon sx={{ minWidth: 40 }}>

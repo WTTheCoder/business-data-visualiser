@@ -15,10 +15,16 @@ const Dashboard: FC = () => {
 
   // Memoize filtered data
   const filteredData = useMemo(() => {
-    console.log("Filtering data with criteria:", filterCriteria);
-    let filtered = mockData;
+    console.log("Starting data filtering with criteria:", {
+      region: filterCriteria.region,
+      startDate: filterCriteria.startDate?.toISOString(),
+      endDate: filterCriteria.endDate?.toISOString(),
+    });
 
-    // Apply date filter
+    console.log("Initial data length:", mockData.length);
+    let filtered = [...mockData];
+
+    // Apply date filter first
     if (filterCriteria.startDate && filterCriteria.endDate) {
       const start = filterCriteria.startDate.getTime();
       const end = filterCriteria.endDate.getTime();
@@ -27,43 +33,79 @@ const Dashboard: FC = () => {
         const itemTime = new Date(item.date).getTime();
         return itemTime >= start && itemTime <= end;
       });
+      console.log("After date filtering:", filtered.length);
     }
 
     // Apply region filter
     if (filterCriteria.region !== "all") {
-      filtered = filtered.filter((item) =>
-        filterCriteria.region.startsWith("AU-")
-          ? item.subRegion === filterCriteria.region.split("-")[1]
-          : item.region === filterCriteria.region
-      );
+      console.log("Applying region filter for:", filterCriteria.region);
+
+      if (filterCriteria.region.startsWith("AU-")) {
+        // Handle Australian states
+        const state = filterCriteria.region.split("-")[1];
+        console.log("Filtering for AU state:", state);
+        filtered = filtered.filter(
+          (item) => item.region === "AU" && item.subRegion === state
+        );
+      } else {
+        // Handle country level
+        console.log("Filtering for country:", filterCriteria.region);
+        filtered = filtered.filter((item) => {
+          const isMatch =
+            item.region === filterCriteria.region && !item.subRegion;
+          if (isMatch) {
+            console.log("Matched country data:", {
+              date: item.date,
+              region: item.region,
+              sales: item.sales,
+            });
+          }
+          return isMatch;
+        });
+      }
+
+      console.log("After region filtering:", {
+        filterRegion: filterCriteria.region,
+        resultCount: filtered.length,
+        sampleData: filtered[0]
+          ? {
+              date: filtered[0].date,
+              region: filtered[0].region,
+              subRegion: filtered[0].subRegion,
+              sales: filtered[0].sales,
+            }
+          : "No data",
+      });
     }
 
-    console.log("Filtered data length:", filtered.length);
     return filtered;
   }, [filterCriteria]);
 
   // Calculate chunk size based on data volume
-  const CHUNK_SIZE = useMemo(
-    () => Math.max(20, Math.ceil(filteredData.length / 400)),
-    [filteredData.length]
-  );
+  const CHUNK_SIZE = Math.max(20, Math.ceil(filteredData.length / 400));
 
   // Pre-calculate data chunks for each chart
   const chartData = useMemo(() => {
-    console.log("Generating chunks with size:", CHUNK_SIZE);
-    const dataLength = filteredData.length;
     const chunks = [];
-
-    for (let i = 0; i < dataLength; i += CHUNK_SIZE) {
+    for (let i = 0; i < filteredData.length; i += CHUNK_SIZE) {
       chunks.push(filteredData.slice(i, i + CHUNK_SIZE));
     }
-
+    console.log("Generated chunks:", {
+      totalData: filteredData.length,
+      chunkSize: CHUNK_SIZE,
+      numberOfChunks: chunks.length,
+    });
     return chunks;
   }, [filteredData, CHUNK_SIZE]);
 
   const handleDataFiltering = useCallback(
     (region: string, startDate: Date | null, endDate: Date | null) => {
-      console.log("Updating filters:", { region, startDate, endDate });
+      console.log("Filter change triggered:", {
+        region,
+        startDate: startDate?.toISOString(),
+        endDate: endDate?.toISOString(),
+      });
+
       setFilterCriteria({
         region,
         startDate: startDate || new Date(2024, 0, 1),
